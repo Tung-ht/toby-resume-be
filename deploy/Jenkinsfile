@@ -1,0 +1,223 @@
+// Toby.Resume Backend — CI/CD Pipeline
+// One-click deploy: Checkout → Stop App → DB Migration → Build → Deploy → Health Check
+// See docs/ai/deployment/README.md for setup.
+// Pipeline and Dockerfile live under deploy/; build context is repo root.
+
+pipeline {
+    agent any
+
+    environment {
+        APP_CONTAINER  = 'tobyresume-app'
+        APP_IMAGE      = 'tobyresume-app'
+        APP_PORT       = '8080'
+        NETWORK        = 'tobyresume-network'
+        MONGO_HOST     = 'tobyresume-mongo'
+        MONGO_DB       = 'tobyresume'
+        ENV_FILE       = "${JENKINS_HOME}/tobyresume.env"
+        MEDIA_VOLUME   = 'tobyresume-media-data'
+    }
+
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+    }
+
+    stages {
+
+        // ──────────────────────────────────────────────
+        // 1. Fetch the latest changes from Git
+        // ──────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Checked out: ${env.GIT_BRANCH ?: 'unknown branch'}"
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // 2. Stop the current backend app
+        // ──────────────────────────────────────────────
+        stage('Stop App') {
+            steps {
+                sh '''
+                    if docker ps -q -f name=$APP_CONTAINER | grep -q .; then
+                        echo "Stopping running app container..."
+                        docker stop $APP_CONTAINER
+                        docker rm $APP_CONTAINER
+                        echo "App container stopped and removed."
+                    elif docker ps -aq -f name=$APP_CONTAINER | grep -q .; then
+                        echo "Removing stopped app container..."
+                        docker rm $APP_CONTAINER
+                        echo "Stopped container removed."
+                    else
+                        echo "No existing app container found. First deployment."
+                    fi
+                '''
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // 3. Check and execute database migration scripts
+        //    (MongoDB .js scripts in deploy/db-migrations/)
+        // ──────────────────────────────────────────────
+        stage('DB Migration') {
+            steps {
+                sh '''
+                    MIGRATION_DIR="deploy/db-migrations"
+
+                    # Find .js migration scripts (ignore README, .gitkeep, etc.)
+                    SCRIPTS=$(find "$MIGRATION_DIR" -maxdepth 1 -name "*.js" -type f 2>/dev/null | sort)
+
+                    if [ -z "$SCRIPTS" ]; then
+                        echo "No migration scripts found in $MIGRATION_DIR/. Skipping."
+                    else
+                        echo "=== Database Migration ==="
+                        APPLIED=0
+                        SKIPPED=0
+
+                        for script in $SCRIPTS; do
+                            filename=$(basename "$script")
+
+                            # Check if already applied (stored in _schema_migrations collection)
+                            count=$(docker exec $MONGO_HOST mongosh $MONGO_DB --quiet \
+                                --eval "db._schema_migrations.countDocuments({name: '$filename'})")
+
+                            if [ "$count" -gt 0 ] 2>/dev/null; then
+                                echo "[SKIP] $filename (already applied)"
+                                SKIPPED=$((SKIPPED + 1))
+                            else
+                                echo "[RUN]  Applying $filename..."
+                                docker exec -i $MONGO_HOST mongosh $MONGO_DB < "$script"
+
+                                if [ $? -eq 0 ]; then
+                                    # Record successful migration
+                                    docker exec $MONGO_HOST mongosh $MONGO_DB --quiet \
+                                        --eval "db._schema_migrations.insertOne({name: '$filename', appliedAt: new Date()})"
+                                    echo "[OK]   $filename applied successfully."
+                                    APPLIED=$((APPLIED + 1))
+                                else
+                                    echo "[FAIL] $filename failed! Aborting pipeline."
+                                    exit 1
+                                fi
+                            fi
+                        done
+
+                        echo "=== Migration complete: $APPLIED applied, $SKIPPED skipped ==="
+                    fi
+                '''
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // 4. Build the Docker image (multi-stage: Maven build + JRE runtime)
+        //    Dockerfile is in deploy/; build context is repo root.
+        // ──────────────────────────────────────────────
+        stage('Build') {
+            steps {
+                sh '''
+                    echo "Building Docker image (multi-stage: compile + package + image)..."
+                    docker build \
+                        -f deploy/Dockerfile \
+                        -t $APP_IMAGE:$BUILD_NUMBER \
+                        -t $APP_IMAGE:latest \
+                        .
+                    echo "Docker image built: $APP_IMAGE:$BUILD_NUMBER"
+                '''
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // 5. Start the new backend app container
+        // ──────────────────────────────────────────────
+        stage('Deploy') {
+            steps {
+                sh '''
+                    # Create env file from template on first deploy
+                    if [ ! -f "$ENV_FILE" ]; then
+                        cp .env.example "$ENV_FILE"
+                        echo "WARNING: Created $ENV_FILE from .env.example."
+                        echo "         Edit this file with production values after first deploy."
+                    fi
+
+                    echo "Starting app container..."
+                    docker run -d \
+                        --name $APP_CONTAINER \
+                        --network $NETWORK \
+                        --restart unless-stopped \
+                        -p $APP_PORT:8080 \
+                        --env-file "$ENV_FILE" \
+                        -e MONGODB_URI=mongodb://$MONGO_HOST:27017/$MONGO_DB \
+                        -v $MEDIA_VOLUME:/app/media \
+                        $APP_IMAGE:latest
+
+                    echo "App container started."
+                '''
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // 6. Verify the app is healthy
+        // ──────────────────────────────────────────────
+        stage('Health Check') {
+            steps {
+                sh '''
+                    echo "Waiting for app to become healthy..."
+                    HEALTHY=false
+
+                    for i in $(seq 1 30); do
+                        RESPONSE=$(curl -sf http://$APP_CONTAINER:8080/actuator/health 2>/dev/null || true)
+
+                        if echo "$RESPONSE" | grep -q '"UP"'; then
+                            echo "App is healthy! (attempt $i/30)"
+                            echo "$RESPONSE"
+                            HEALTHY=true
+                            break
+                        fi
+
+                        echo "Attempt $i/30 — waiting 5s..."
+                        sleep 5
+                    done
+
+                    if [ "$HEALTHY" = "false" ]; then
+                        echo "============================================"
+                        echo "HEALTH CHECK FAILED after 150 seconds!"
+                        echo "============================================"
+                        echo "Container logs (last 50 lines):"
+                        docker logs --tail 50 $APP_CONTAINER 2>&1 || true
+                        exit 1
+                    fi
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            sh '''
+                echo "============================================"
+                echo "  DEPLOYMENT SUCCESSFUL"
+                echo "============================================"
+                echo "  App:     http://localhost:$APP_PORT"
+                echo "  Health:  http://localhost:$APP_PORT/actuator/health"
+                echo "  GraphQL: http://localhost:$APP_PORT/graphql"
+                echo "  Swagger: http://localhost:$APP_PORT/swagger-ui.html"
+                echo "  Build:   #$BUILD_NUMBER"
+                echo "============================================"
+            '''
+        }
+        failure {
+            sh '''
+                echo "============================================"
+                echo "  DEPLOYMENT FAILED"
+                echo "============================================"
+                echo "  Check the console output above for details."
+                echo "  Build: #$BUILD_NUMBER"
+                echo "============================================"
+                echo ""
+                echo "Container logs (if available):"
+                docker logs --tail 100 $APP_CONTAINER 2>&1 || echo "(no container logs)"
+            '''
+        }
+    }
+}

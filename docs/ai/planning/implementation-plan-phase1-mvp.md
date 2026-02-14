@@ -37,6 +37,43 @@ This plan is derived from:
 
 ---
 
+## 1.2 Planning Update (2026-02-13)
+
+### Current Status: Phase 1 (MVP)
+
+#### Done
+- [x] **Phase A (Foundation) — M1 partial** — A.1–A.8 complete. Maven project (Java 17, Spring Boot 3.2.5), all Phase 1 dependencies, package structure, `application.yml` / `application-dev.yml`, `docker-compose.yml`, Dockerfile, Actuator (health + info, MongoDB). Minimal `SecurityConfig` permits `/actuator/**`. Verified: compile, MongoDB via Docker, app start with dev profile, `GET /actuator/health` 200 with mongo UP. Fix applied: removed invalid `<scope>` from parent in `pom.xml`.
+- [x] **Phase B (Common Layer) — M1 complete** — B.1–B.8 complete. `ContentState` enum; `BaseDocument` + `MongoConfig` (@EnableMongoAuditing); `ApiResponse<T>` and `ErrorBody` (with `FieldErrorDetail`); `GlobalExceptionHandler` (400, 401, 403, 404, 500; MethodArgumentNotValidException → validation details); custom exceptions (`ResourceNotFoundException`, `UnauthorizedException`, `ValidationException`, `ForbiddenException`); `@ValidLocaleKeys` and `LocaleKeysValidator`; `CorsConfig` from `app.cors.*` (SecurityConfig uses cors with defaults); `IdGenerator.uuid()`. Verified: `mvn compile` succeeds.
+
+- [x] **Phase C (Security & Auth) — M2 complete** — C.1–C.10 complete. OAuth2 Google + GitHub in `application.yml`; `JwtTokenProvider` (HS256, sub, name, provider, role, iat, exp); `JwtAuthFilter` (Bearer, SecurityContext with `AuthPrincipal`); `OAuth2SuccessHandler` (allowed-admins check, JWT, redirect with `?token=`); `OAuth2FailureHandler` (redirect with `?error=access_denied`); `SecurityConfig` (permit `/graphql`, `/actuator/**`, `/oauth2/**`, `/login/oauth2/**`; require auth for `/api/v1/**`; stateless; entry point + access denied handler return JSON envelope); `AuthController` (GET `/api/v1/auth/me`, POST `/api/v1/auth/logout`); `AppSecurityProperties` for `allowed-admins` and redirect-uri; `GlobalExceptionHandler` handles `AccessDeniedException` → 403. Verified: `mvn compile` succeeds.
+- [x] **Phase F (Settings) — M6 complete** — F.1–F.4 complete. `SiteSettings` document (supportedLocales, defaultLocale, pdfSectionVisibility); `SiteSettingsRequest` / `SiteSettingsResponse` DTOs; `SettingsMapper` (entity→response); `SettingsRepository` (findSingleton); `SettingsService` (getOrCreate bootstrap, update with validation: supportedLocales exactly ["en","vi"], defaultLocale in supportedLocales, pdfSectionVisibility keys fixed); `SettingsController` (GET/PUT `/api/v1/settings`). Verified: `mvn compile` succeeds.
+- [x] **Phase D (Content CRUD — Hero) — M3 partial** — D.1–D.8 complete. `Hero` document (unique index on contentState); `HeroRequest`/`HeroResponse` with `@ValidLocaleKeys` and `@MapValueMaxLength`; `HeroMapper`, `HeroRepository`, `HeroService`, `HeroController` (GET/PUT `/api/v1/hero`); unit tests (HeroServiceTest); integration tests (HeroControllerIntegrationTest with Testcontainers MongoDB, `@Order` for test order). `ApiResponse` updated so `data` is always present on success (null when no hero). Verified: `mvn test -Dtest=HeroServiceTest,HeroControllerIntegrationTest` passes.
+- [x] **Phase E (Content CRUD — List Sections) — M3 complete** — E.1–E.8 done. **Experience**: WorkExperience + ExperienceItem; DTOs with @ValidBulletPoints; 6 endpoints; unit + integration tests. **Projects**: Project + ProjectItem; Link/LinkDto; 6 endpoints; unit + integration tests. **Education**: Education + EducationItem (institution, degree, field, startDate/endDate, details); 6 endpoints. **Certifications**: Certification + CertificationItem (title, issuer, date, url, description); 6 endpoints. **Social Links**: SocialLink + SocialLinkItem (platform, url, icon); `/api/v1/social-links`; 6 endpoints. **Skills**: Skill + SkillCategory (categoryId, name, items List&lt;SkillItem&gt;); GET/POST/PUT/DELETE /skills, GET /skills/{categoryId}, PUT /skills/reorder; max 50 items per category. All list sections use ReorderRequest and same getOrCreateDraft/list/get/add/update/delete/reorder pattern. Verified: `mvn test` passes.
+- [x] **Phase G (Preview API) — M4 partial** — G.1–G.3 complete. `PreviewService` aggregates all DRAFT sections (hero, experiences, projects, education, skills, certifications, socialLinks); optional locale filter (`?locale=en` or `vi`) returns single-locale values per field. `PreviewController`: GET `/api/v1/preview` (JWT required). Response shape per api-design §5.1 (GraphQL-friendly for frontend reuse). Verified: `mvn compile` succeeds.
+- [x] **Phase H (Publish Pipeline) — M4 complete** — H.1–H.6 complete. `VersionSnapshot` (content, label, publishedAt); `PublishRepository` (save, findTop1ByOrderByPublishedAtDesc, count); `PublishService` (publish: copy DRAFT→PUBLISHED for all 7 sections via clone/empty, build snapshot, save; getStatus); missing DRAFT treated as empty PUBLISHED; `PublishFailedException` + handler (500 PUBLISH_FAILED); `PublishController` (POST `/api/v1/publish` optional body label, GET `/api/v1/publish/status`); `PublishControllerIntegrationTest` (Testcontainers). Verified: `mvn compile` and `mvn test -Dtest=PublishControllerIntegrationTest` pass.
+- [x] **Phase I (GraphQL Public API) — M5 complete** — I.1–I.8 complete. `schema.graphqls` (Locale enum, Query with hero, experiences, projects, education, skills, certifications, socialLinks, siteSettings); Spring GraphQL config in application.yml (path /graphql, schema location; GraphiQL enabled in dev). `ContentGraphQLController`: all @QueryMapping resolvers; locale from argument or settings default; single-locale view. Services extended with getPublished() / listPublished() / listPublishedVisible() (projects). GraphQL model types in `graphql.model`; `GraphQLExceptionResolver` (DataFetcherExceptionResolverAdapter) maps NOT_FOUND, VALIDATION_ERROR, INTERNAL_ERROR; no stack traces. Empty state: null hero, empty lists. Verified: `mvn compile` and `mvn test` pass.
+- [x] **Phase J (Docker & Deploy) — M7 complete (v2 — Jenkins CI/CD pipeline)** — J.1–J.4 complete + J.5–J.8 added (2026-02-13). **Architecture redesigned**: infrastructure (MongoDB + Jenkins) runs via `docker-compose.yml` (always on); backend app is built and deployed by the Jenkins pipeline (not in compose). **Jenkinsfile rewritten** with 6-stage pipeline: Checkout (fetch latest from Git) → Stop App (stop/remove `tobyresume-app` container) → DB Migration (detect and run new `.js` mongosh scripts from `deploy/db-migrations/`, tracked in `_schema_migrations` collection) → Build (`docker build` multi-stage image, tagged by build number) → Deploy (`docker run` on `tobyresume-network` with `--env-file` and `--restart unless-stopped`) → Health Check (poll `/actuator/health` up to 150s). Fail-fast on any error; warnings logged without stopping. **Custom Jenkins image** (`deploy/jenkins/Dockerfile`): Jenkins LTS + Docker CLI (docker.io), enables pipeline to manage Docker containers via mounted socket. **docker-compose.yml** now defines infrastructure only (mongo + jenkins) with explicit container names (`tobyresume-mongo`, `tobyresume-jenkins`), explicit network name (`tobyresume-network`), explicit volume names. **docker-compose.dev.yml** added for local dev (mongo + app, no Jenkins). **docker-compose.jenkins.yml removed** (merged into main compose). **Deploy scripts restructured**: `start-infra` (start MongoDB + Jenkins), `deploy-dev` (dev mode: mongo + app), `down` (stop all + Jenkins-deployed app), `test-after-deploy` (smoke tests). Old scripts (`deploy`, `deploy-with-jenkins`) removed. **DB migrations**: `deploy/db-migrations/` directory with README; numbered `.js` scripts; pipeline checks `_schema_migrations` collection for idempotent execution. **Env handling**: pipeline copies `.env.example` to `$JENKINS_HOME/tobyresume.env` on first deploy; persists across builds via Jenkins volume; `MONGODB_URI` set automatically. Dockerfile unchanged. All documentation updated.
+
+#### In Progress
+- [ ] **Phase K (Testing & Documentation)** — Next up.
+
+#### Blocked
+- None.
+
+#### Newly Discovered Work
+- [ ] **J.9** — Verify Jenkins pipeline end-to-end on target server (first real "Build Now" test).
+- [ ] **J.10** — Configure Jenkins credentials for private Git repo (if needed).
+- [ ] **J.11** — Set production values in `$JENKINS_HOME/tobyresume.env` after first deploy.
+
+#### Next 2–3 Tasks
+1. **J.9** — Verify Jenkins pipeline end-to-end (start infra, configure job, Build Now, check health).
+2. **K.1** — Testcontainers (MongoDB) for integration tests.
+3. **K.2** — Unit tests: all services (target 80%+ coverage).
+
+**Summary for planning:** Phase A–J are complete. M7 (Docker & Deploy) **redesigned on 2026-02-13**: Jenkins now performs full CI/CD (checkout → stop → migrate → build → deploy → health check) instead of just building a JAR. Infrastructure (MongoDB + Jenkins) separated from app deployment. Next: verify pipeline E2E, then Phase K (Testing & Documentation).
+
+---
+
 ## 2. Implementation Phases (Execution Order)
 
 ### Phase A: Foundation (M1)
@@ -56,6 +93,8 @@ This plan is derived from:
 
 **Definition of Done M1:** App starts; health endpoint returns 200; no runtime errors; packages exist.
 
+**Phase A status:** ✅ Complete. Minimal `SecurityConfig` added to permit `/actuator/**` so health returns 200 before Phase C. Dockerfile uses Maven image (no mvnw in repo). `.env.example` added. To verify locally: install Maven or add Maven Wrapper, then `mvn spring-boot:run -Dspring-boot.run.profiles=dev` and open `http://localhost:8080/actuator/health`. For MongoDB in health response, start MongoDB (e.g. `docker compose up mongo -d`) first.
+
 ---
 
 ### Phase B: Common Layer (M1)
@@ -74,6 +113,8 @@ This plan is derived from:
 | B.8 | Create UUID helper for embedded item IDs (e.g. `IdGenerator.uuid()`) | phase1-mvp §3 | `common/util/` |
 
 **Definition of Done:** All REST error responses use the unified envelope; CORS allows configured origins; locale validator rejects invalid keys.
+
+**Phase B status:** ✅ Complete. `ForbiddenException` added for 403. Security filter chain updated to use `.cors(Customizer.withDefaults())` so `CorsConfig` bean is applied.
 
 ---
 
@@ -96,6 +137,8 @@ This plan is derived from:
 
 **Definition of Done M2:** Unauthenticated request to `/api/v1/hero` returns 401; with valid JWT returns 200 (or 404 if no hero yet). OAuth2 redirect → JWT → `/auth/me` works.
 
+**Phase C status:** ✅ Complete. `HttpEnvelopeEntryPoint` and `HttpEnvelopeAccessDeniedHandler` return 401/403 with ApiResponse envelope. C.10 (manual E2E) to be verified with real OAuth2 credentials.
+
 ---
 
 ### Phase D: Content CRUD — Hero (M3)
@@ -114,6 +157,8 @@ This plan is derived from:
 | D.8 | Integration test: HeroController (MockMvc) with mock JWT or @WithMockUser | — | GET/PUT and validation error (400) |
 
 **Definition of Done:** GET/PUT hero return envelope; validation errors return 400 with details; only DRAFT is read/written.
+
+**Phase D status:** ✅ Complete. Unit and integration tests pass; Testcontainers MongoDB used for controller tests; `ApiResponse.data` always included on success (null when no draft).
 
 ---
 
@@ -136,6 +181,8 @@ Use **Experience** as the template (database-design §5.2, api-design §4.2).
 
 **Definition of Done M3:** All 7 sections have REST CRUD; reorder works; validation and error envelope consistent with API design.
 
+**Phase E status:** ✅ Complete. All 7 list sections implemented: Experience, Projects, Education, Certifications, Social Links, Skills (categories + items). Shared: `ReorderRequest`, `@ValidBulletPoints`, `Link` (common). Unit + integration tests for Experience and Project; other sections follow same pattern. M3 (Content CRUD) definition of done satisfied.
+
 ---
 
 ### Phase F: Settings (M6)
@@ -151,6 +198,8 @@ Use **Experience** as the template (database-design §5.2, api-design §4.2).
 
 **Definition of Done:** GET returns settings; PUT updates; first GET creates default document.
 
+**Phase F status:** ✅ Complete. Manual E2E (GET/PUT with JWT) can be verified once OAuth2 is configured.
+
 ---
 
 ### Phase G: Preview API (M4)
@@ -164,6 +213,8 @@ Use **Experience** as the template (database-design §5.2, api-design §4.2).
 | G.3 | Response: same structure as GraphQL-friendly shape (hero object, experiences array, etc.) so frontend can reuse components | phase1-mvp §6.2 | Document in API design |
 
 **Definition of Done:** GET /api/v1/preview (with JWT) returns full draft payload; with ?locale=en returns single-locale values.
+
+**Phase G status:** ✅ Complete. PreviewService aggregates DRAFT from all section services; GET /api/v1/preview with optional ?locale=en|vi; response shape per api-design §5.1 (hero object, experiences/projects/education/skills/certifications/socialLinks arrays; single-locale values when locale query present).
 
 ---
 
@@ -181,6 +232,8 @@ Use **Experience** as the template (database-design §5.2, api-design §4.2).
 | H.6 | Integration test: publish with hero + one experience; then query GraphQL and assert published data | — | Ensures PUBLISHED docs written |
 
 **Definition of Done M4:** POST publish creates/updates all PUBLISHED docs and one VersionSnapshot; GET status returns last publish time and count; GraphQL sees new data after publish.
+
+**Phase H status:** ✅ Complete. Integration test covers POST/GET and status; GraphQL assertion can be added once Phase I is in place.
 
 ---
 
@@ -201,20 +254,30 @@ Use **Experience** as the template (database-design §5.2, api-design §4.2).
 
 **Definition of Done M5:** POST /graphql with LandingPage query returns published data; locale argument filters correctly; projects only visible; errors use GraphQL format.
 
+**Phase I status:** ✅ Complete. Schema and ContentGraphQLController with all root queries; getPublished/listPublished/listPublishedVisible on services; graphql.model types; GraphQLExceptionResolver; locale resolution from argument or siteSettings.defaultLocale.
+
 ---
 
 ### Phase J: Docker & Deploy (M7)
 
-**Objective:** Production-ready image and compose.
+**Objective:** Production-ready image, infrastructure compose, and Jenkins CI/CD pipeline.
 
 | Step | Task | Reference | Output / Checklist |
 |------|------|-----------|--------------------|
 | J.1 | Dockerfile: multi-stage build (JDK build, JRE run); install curl for healthcheck; HEALTHCHECK hitting /actuator/health | phase1-mvp §12.1 | Dockerfile in project root |
-| J.2 | docker-compose: app + mongo; env vars (MONGODB_URI, JWT_SECRET, GOOGLE_*, GITHUB_*, ADMIN_*, CORS origins); volumes for mongo-data (and media if needed later); app depends_on mongo healthy | phase1-mvp §12.2, api-design | No `version` key (Compose v2) |
-| J.3 | `.env.example`: list all required variables with placeholder values | — | Copy to .env for local |
+| J.2 | docker-compose.yml: infrastructure (MongoDB + Jenkins); explicit network `tobyresume-network`; explicit container and volume names | phase1-mvp §12.2 | Infrastructure always running |
+| J.3 | `.env.example`: list all required variables with placeholder values | — | Copy to .env for local / Jenkins |
 | J.4 | Production profile: JSON logging, health details policy | phase1-mvp §14 | application-prod.yml or env |
+| J.5 | Custom Jenkins Dockerfile: Jenkins LTS + Docker CLI; mounted Docker socket for container management | — | `deploy/jenkins/Dockerfile` |
+| J.6 | Jenkinsfile: 6-stage pipeline (Checkout → Stop App → DB Migration → Build → Deploy → Health Check); fail-fast on errors | — | Root `Jenkinsfile` |
+| J.7 | DB migration infrastructure: `deploy/db-migrations/` with numbered `.js` scripts; `_schema_migrations` tracking collection | — | Idempotent migration runner |
+| J.8 | Deploy scripts: `start-infra`, `deploy-dev`, `down`, `test-after-deploy` (`.ps1`, `.sh`, `.cmd`) | — | `deploy/scripts/` |
+| J.9 | docker-compose.dev.yml: MongoDB + App for local dev without Jenkins | — | Dev compose file |
+| J.10 | Verify Jenkins pipeline end-to-end on target server | — | First successful "Build Now" |
 
-**Definition of Done M7:** `docker compose up --build` runs app + MongoDB; health check passes; app can authenticate and serve APIs.
+**Definition of Done M7:** Infrastructure starts with `docker compose up -d`; Jenkins "Build Now" deploys the app (checkout → stop → migrate → build → run → health check); health check passes; app can authenticate and serve APIs.
+
+**Phase J status:** ✅ Complete (v2). Redesigned on 2026-02-13. J.1–J.9 done. Jenkins performs full CI/CD instead of just building a JAR. Infrastructure (MongoDB + Jenkins) separated from app lifecycle. J.10 (E2E verification) pending first real deployment.
 
 ---
 

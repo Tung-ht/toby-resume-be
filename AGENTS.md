@@ -11,6 +11,7 @@ This project uses ai-devkit for structured AI-assisted development. Phase docume
 - `docs/ai/testing/` - Testing strategy and test cases
 - `docs/ai/deployment/` - Deployment and infrastructure docs
 - `docs/ai/monitoring/` - Monitoring and observability setup
+- `docs/ai/frontend/` - FrontEnd apps: UI/UX requirements and API reference for Admin Panel and Landing Page
 
 ## Code Style & Standards
 - Follow the project's established code style and conventions

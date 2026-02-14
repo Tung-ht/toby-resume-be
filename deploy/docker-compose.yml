@@ -1,0 +1,56 @@
+# Toby.Resume — Infrastructure stack (always running)
+# Provides MongoDB and Jenkins. The backend app is deployed by the Jenkins pipeline.
+#
+# Usage:
+#   docker compose -f deploy/docker-compose.yml up -d              # Start MongoDB + Jenkins
+#   docker compose -f deploy/docker-compose.yml up -d mongo         # Start MongoDB only (for local dev)
+#   docker compose -f deploy/docker-compose.yml down                 # Stop everything
+#
+# See docs/ai/deployment/README.md for full guide.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: tobyresume-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jenkins:
+    build: ./jenkins
+    container_name: tobyresume-jenkins
+    platform: linux/amd64
+    user: root
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+networks:
+  default:
+    name: tobyresume-network
+
+volumes:
+  mongo-data:
+    name: tobyresume-mongo-data
+  jenkins_home:
+    name: tobyresume-jenkins-home

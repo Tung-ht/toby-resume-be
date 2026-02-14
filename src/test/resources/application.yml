@@ -1,0 +1,33 @@
+# Test: minimal config so context loads (MongoDB URI set by Testcontainers where used)
+app:
+  security:
+    allowed-admins:
+      - test@test.local
+    jwt:
+      secret: test-jwt-secret-at-least-32-characters-long
+      expiration-ms: 3600000
+    oauth2:
+      redirect-uri: http://localhost:3000/auth/callback
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:3001
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Content-Type,Authorization
+    allow-credentials: true
+    max-age: 3600
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/test
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-id
+            client-secret: test-google-secret
+            scope: email, profile
+          github:
+            client-id: test-github-id
+            client-secret: test-github-secret
+            scope: user:email

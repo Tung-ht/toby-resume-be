@@ -1,0 +1,35 @@
+# Dev profile: local MongoDB, relaxed CORS, GraphiQL enabled
+# Use with: spring.profiles.active=dev or SPRING_PROFILES_ACTIVE=dev
+# OAuth2 placeholders allow app to start without real credentials (replace for login testing).
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dev-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dev-google-client-secret}
+          github:
+            client-id: ${GITHUB_CLIENT_ID:dev-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:dev-github-client-secret}
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/tobyresume}
+  graphql:
+    graphiql:
+      enabled: true
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001
+      - http://127.0.0.1:3000
+      - http://127.0.0.1:3001
+
+# Show health details without auth in dev (easier to verify MongoDB)
+management:
+  endpoint:
+    health:
+      show-details: always

@@ -1,0 +1,64 @@
+# Toby.Resume — Development stack (no Jenkins)
+# Builds and runs the backend app + MongoDB for local development/testing.
+#
+# Usage:
+#   docker compose -f deploy/docker-compose.dev.yml up -d --build
+#   docker compose -f deploy/docker-compose.dev.yml down
+#
+# Or use the deploy script:
+#   .\deploy\scripts\deploy-dev.ps1
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: tobyresume-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      MONGODB_URI: mongodb://tobyresume-mongo:27017/tobyresume
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production-min32chars!}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dev-google-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dev-google-client-secret}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-dev-github-client-id}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-dev-github-client-secret}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-placeholder@local}
+      ADMIN_PANEL_URL: ${ADMIN_PANEL_URL:-http://localhost:3000}
+      ADMIN_PANEL_ORIGIN: ${ADMIN_PANEL_ORIGIN:-http://localhost:3000}
+      LANDING_PAGE_ORIGIN: ${LANDING_PAGE_ORIGIN:-http://localhost:3001}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - media-data:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  mongo:
+    image: mongo:7
+    container_name: tobyresume-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  default:
+    name: tobyresume-network
+
+volumes:
+  mongo-data:
+    name: tobyresume-mongo-data
+  media-data:
+    name: tobyresume-media-data

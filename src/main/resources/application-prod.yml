@@ -1,0 +1,22 @@
+# Production profile (docs/ai/design/phase1-mvp.md §14)
+# Use with: spring.profiles.active=prod
+# Logging: configurable via LOGGING_LEVEL_ROOT; JSON layout via logback-spring.xml when encoder on classpath
+
+spring:
+  graphql:
+    graphiql:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+logging:
+  level:
+    root: INFO
+    com.tobyresume: INFO

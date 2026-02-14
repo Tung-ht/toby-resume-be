@@ -1,0 +1,99 @@
+# Public API — PUBLISHED content only. No auth required.
+# @see docs/ai/design/api-design.md §8
+
+enum Locale {
+  EN
+  VI
+}
+
+type Query {
+  hero(locale: Locale): Hero
+  experiences(locale: Locale): [ExperienceItem!]!
+  projects(locale: Locale): [ProjectItem!]!
+  education(locale: Locale): [EducationItem!]!
+  skills(locale: Locale): [SkillCategory!]!
+  certifications(locale: Locale): [CertificationItem!]!
+  socialLinks: [SocialLinkItem!]!
+  siteSettings: SiteSettings
+}
+
+type Hero {
+  tagline: String
+  bio: String
+  fullName: String
+  title: String
+  profilePhotoUrl: String
+}
+
+type ExperienceItem {
+  id: ID!
+  company: String
+  role: String
+  startDate: String
+  endDate: String
+  bulletPoints: [String!]
+  techUsed: [String!]
+  order: Int!
+}
+
+type ProjectItem {
+  id: ID!
+  title: String
+  description: String
+  techStack: [String!]
+  links: [Link!]
+  mediaUrls: [String!]
+  visible: Boolean!
+  order: Int!
+}
+
+type Link {
+  label: String!
+  url: String!
+}
+
+type EducationItem {
+  id: ID!
+  institution: String
+  degree: String
+  field: String
+  startDate: String
+  endDate: String
+  details: String
+  order: Int!
+}
+
+type SkillCategory {
+  id: ID!
+  name: String
+  items: [SkillItem!]!
+  order: Int!
+}
+
+type SkillItem {
+  name: String!
+  level: String
+}
+
+type CertificationItem {
+  id: ID!
+  title: String
+  issuer: String
+  date: String
+  url: String
+  description: String
+  order: Int!
+}
+
+type SocialLinkItem {
+  id: ID!
+  platform: String!
+  url: String!
+  icon: String
+  order: Int!
+}
+
+type SiteSettings {
+  supportedLocales: [String!]!
+  defaultLocale: String!
+}

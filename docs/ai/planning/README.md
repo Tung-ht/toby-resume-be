@@ -8,10 +8,20 @@ description: "Milestones, task breakdown, dependencies, and timeline for Phase 1
 
 > **Detailed implementation plan:** See **`implementation-plan-phase1-mvp.md`** in this folder for step-by-step tasks, dependencies, and design doc references. The plan is the single source of truth for implementing Phase 1 from design.
 
+## Current Status: Phase 1 (MVP)
+
+**Last updated:** 2026-02-12
+
+- **M1 (Foundation):** ✅ Complete. Phase 1.1 (Foundation) and Phase 1.2 (Common Layer) done.
+- **M2 (Security & Auth):** ✅ Complete. Phase 1.3 done: OAuth2 Google/GitHub, JWT, `/api/v1/**` protected, GET `/auth/me`, POST `/auth/logout`, 401/403 JSON envelope.
+- **Next:** Phase 1.10 — Testing & Polish.
+
+---
+
 ## Milestones
 
-- [ ] **M1: Project Foundation** — Spring Boot project initialized, dependencies configured, Docker Compose running
-- [ ] **M2: Security & Auth** — OAuth2 (Google + GitHub) login working, JWT issued, admin endpoints protected
+- [x] **M1: Project Foundation** — Spring Boot project initialized, dependencies configured, Docker Compose running, Common Layer in place _(1.1 & 1.2 done)_
+- [x] **M2: Security & Auth** — OAuth2 (Google + GitHub) login working, JWT issued, admin endpoints protected _(1.3 done)_
 - [ ] **M3: Content CRUD** — All 7 content sections with REST CRUD on DRAFT state
 - [ ] **M4: Publish Pipeline** — Draft → Published copy, version snapshot saved
 - [ ] **M5: GraphQL Public API** — Published content served via GraphQL with locale filtering
@@ -22,69 +32,69 @@ description: "Milestones, task breakdown, dependencies, and timeline for Phase 1
 
 ## Task Breakdown
 
-### Phase 1.1: Project Foundation (M1)
+### Phase 1.1: Project Foundation (M1) — Done
 
-- [ ] **1.1.1** Generate Spring Boot project (Maven, Java 17, Spring Boot 3.x)
-- [ ] **1.1.2** Add all Phase 1 dependencies to `pom.xml` (see design doc Section 2)
-- [ ] **1.1.3** Create package structure (feature-based: config, security, common, content, publish, settings)
-- [ ] **1.1.4** Configure `application.yml` and `application-dev.yml` (MongoDB, server port, logging)
-- [ ] **1.1.5** Create `docker-compose.yml` with MongoDB service (dev environment)
-- [ ] **1.1.6** Verify app starts and connects to MongoDB
-- [ ] **1.1.7** Configure Spring Boot Actuator (`/actuator/health` with MongoDB check)
+- [x] **1.1.1** Generate Spring Boot project (Maven, Java 17, Spring Boot 3.x)
+- [x] **1.1.2** Add all Phase 1 dependencies to `pom.xml` (see design doc Section 2)
+- [x] **1.1.3** Create package structure (feature-based: config, security, common, content, publish, settings)
+- [x] **1.1.4** Configure `application.yml` and `application-dev.yml` (MongoDB, server port, logging)
+- [x] **1.1.5** Create `docker-compose.yml` with MongoDB service (dev environment)
+- [x] **1.1.6** Verify app starts and connects to MongoDB
+- [x] **1.1.7** Configure Spring Boot Actuator (`/actuator/health` with MongoDB check)
 
-### Phase 1.2: Common Layer (M1)
+### Phase 1.2: Common Layer (M1) — Done
 
-- [ ] **1.2.1** Create `ContentState` enum (DRAFT, PUBLISHED)
-- [ ] **1.2.2** Create `BaseDocument` (id, createdAt, updatedAt with MongoDB auditing)
-- [ ] **1.2.3** Create `ApiResponse<T>` and `ErrorResponse` DTOs
-- [ ] **1.2.4** Create `GlobalExceptionHandler` (@ControllerAdvice) with standard error mapping
-- [ ] **1.2.5** Create `@ValidLocaleKeys` annotation + validator (ensures only "en"/"vi" keys)
-- [ ] **1.2.6** Configure CORS (from `app.cors.*` properties)
-- [ ] **1.2.7** Create UUID utility for embedded item IDs
+- [x] **1.2.1** Create `ContentState` enum (DRAFT, PUBLISHED)
+- [x] **1.2.2** Create `BaseDocument` (id, createdAt, updatedAt with MongoDB auditing) + `MongoConfig` @EnableMongoAuditing
+- [x] **1.2.3** Create `ApiResponse<T>` and `ErrorBody` (with `FieldErrorDetail`) DTOs
+- [x] **1.2.4** Create `GlobalExceptionHandler` (@ControllerAdvice) with standard error mapping
+- [x] **1.2.5** Create `@ValidLocaleKeys` annotation + `LocaleKeysValidator` (ensures only "en"/"vi" keys)
+- [x] **1.2.6** Configure CORS (from `app.cors.*` properties) via `CorsConfig`; SecurityConfig uses cors
+- [x] **1.2.7** Create UUID utility (`IdGenerator.uuid()`) for embedded item IDs
 
-### Phase 1.3: Security & Authentication (M2)
+### Phase 1.3: Security & Authentication (M2) — Done
 
-- [ ] **1.3.1** Configure Spring Security OAuth2 Client (Google + GitHub providers)
-- [ ] **1.3.2** Implement `JwtTokenProvider` (generate, parse, validate HS256 tokens)
-- [ ] **1.3.3** Implement `JwtAuthFilter` (extract Bearer token, set SecurityContext)
-- [ ] **1.3.4** Implement `OAuth2SuccessHandler` (verify allowed-admin, generate JWT, redirect)
-- [ ] **1.3.5** Implement `OAuth2FailureHandler` (redirect with error)
-- [ ] **1.3.6** Implement `AdminGuard` / allowed-admin email check
-- [ ] **1.3.7** Configure `SecurityFilterChain` (public vs protected endpoint rules)
-- [ ] **1.3.8** Implement `GET /api/v1/auth/me` endpoint
-- [ ] **1.3.9** Implement `POST /api/v1/auth/logout` endpoint
-- [ ] **1.3.10** Test OAuth2 flow end-to-end (manual + integration test)
+- [x] **1.3.1** Configure Spring Security OAuth2 Client (Google + GitHub providers)
+- [x] **1.3.2** Implement `JwtTokenProvider` (generate, parse, validate HS256 tokens)
+- [x] **1.3.3** Implement `JwtAuthFilter` (extract Bearer token, set SecurityContext with AuthPrincipal)
+- [x] **1.3.4** Implement `OAuth2SuccessHandler` (verify allowed-admin, generate JWT, redirect with ?token=)
+- [x] **1.3.5** Implement `OAuth2FailureHandler` (redirect with ?error=access_denied)
+- [x] **1.3.6** Allowed-admin check in OAuth2SuccessHandler (email or GitHub id)
+- [x] **1.3.7** Configure `SecurityFilterChain` (public: graphql, actuator, oauth2; protected: /api/v1/**; 401/403 JSON)
+- [x] **1.3.8** Implement `GET /api/v1/auth/me` endpoint
+- [x] **1.3.9** Implement `POST /api/v1/auth/logout` endpoint
+- [ ] **1.3.10** Test OAuth2 flow end-to-end (manual with real credentials; integration test optional)
 
-### Phase 1.4: Content CRUD — Singleton Section (M3)
+### Phase 1.4: Content CRUD — Singleton Section (M3) — Done
 
 Start with **Hero** as the template for singleton sections.
 
-- [ ] **1.4.1** Create `Hero` document model (MongoDB @Document, all fields with localized maps)
-- [ ] **1.4.2** Create `HeroRequest` / `HeroResponse` DTOs with validation annotations
-- [ ] **1.4.3** Create `HeroMapper` (MapStruct)
-- [ ] **1.4.4** Create `HeroRepository` (Spring Data MongoDB: `findByContentState`)
-- [ ] **1.4.5** Create `HeroService` (get draft, upsert draft)
-- [ ] **1.4.6** Create `HeroController` (GET + PUT `/api/v1/hero`)
-- [ ] **1.4.7** Write unit tests for HeroService
-- [ ] **1.4.8** Write integration tests for HeroController (MockMvc)
+- [x] **1.4.1** Create `Hero` document model (MongoDB @Document, all fields with localized maps)
+- [x] **1.4.2** Create `HeroRequest` / `HeroResponse` DTOs with validation annotations
+- [x] **1.4.3** Create `HeroMapper` (MapStruct)
+- [x] **1.4.4** Create `HeroRepository` (Spring Data MongoDB: `findByContentState`)
+- [x] **1.4.5** Create `HeroService` (get draft, upsert draft)
+- [x] **1.4.6** Create `HeroController` (GET + PUT `/api/v1/hero`)
+- [x] **1.4.7** Write unit tests for HeroService
+- [x] **1.4.8** Write integration tests for HeroController (MockMvc)
 
-### Phase 1.5: Content CRUD — List Sections (M3)
+### Phase 1.5: Content CRUD — List Sections (M3) — Done
 
 Use **Experience** as the template, then replicate for other list sections.
 
-- [ ] **1.5.1** Create `WorkExperience` document model (embedded `ExperienceItem` array)
-- [ ] **1.5.2** Create `ExperienceItem` embedded model (itemId, localized fields, order)
-- [ ] **1.5.3** Create DTOs (ExperienceItemRequest, ExperienceItemResponse)
-- [ ] **1.5.4** Create `ExperienceMapper`
-- [ ] **1.5.5** Create `ExperienceRepository`
-- [ ] **1.5.6** Create `ExperienceService` (list, add, update, delete, reorder items in DRAFT)
-- [ ] **1.5.7** Create `ExperienceController` (full CRUD + reorder)
-- [ ] **1.5.8** Write unit + integration tests for Experience
-- [ ] **1.5.9** Replicate pattern for **Projects** (same structure + `visible`, `links`, `mediaIds`)
-- [ ] **1.5.10** Replicate pattern for **Education**
-- [ ] **1.5.11** Replicate pattern for **Certifications**
-- [ ] **1.5.12** Replicate pattern for **Social Links**
-- [ ] **1.5.13** Implement **Skills** section (categories with nested items — slightly different structure)
+- [x] **1.5.1** Create `WorkExperience` document model (embedded `ExperienceItem` array)
+- [x] **1.5.2** Create `ExperienceItem` embedded model (itemId, localized fields, order)
+- [x] **1.5.3** Create DTOs (ExperienceItemRequest, ExperienceItemResponse)
+- [x] **1.5.4** Create `ExperienceMapper`
+- [x] **1.5.5** Create `ExperienceRepository`
+- [x] **1.5.6** Create `ExperienceService` (list, add, update, delete, reorder items in DRAFT)
+- [x] **1.5.7** Create `ExperienceController` (full CRUD + reorder)
+- [x] **1.5.8** Write unit + integration tests for Experience
+- [x] **1.5.9** Replicate pattern for **Projects** (same structure + `visible`, `links`, `mediaIds`)
+- [x] **1.5.10** Replicate pattern for **Education**
+- [x] **1.5.11** Replicate pattern for **Certifications**
+- [x] **1.5.12** Replicate pattern for **Social Links**
+- [x] **1.5.13** Implement **Skills** section (categories with nested items — slightly different structure)
 
 ### Phase 1.6: Settings (M3)
 
@@ -94,39 +104,39 @@ Use **Experience** as the template, then replicate for other list sections.
 - [ ] **1.6.4** Create `SettingsController` (GET + PUT `/api/v1/settings`)
 - [ ] **1.6.5** Initialize default settings on first run (if not exists)
 
-### Phase 1.6b: Preview API (M4)
+### Phase 1.6b: Preview API (M4) — Done
 
-- [ ] **1.6b.1** Create `PreviewService` (aggregate all DRAFT sections; optional locale filter)
-- [ ] **1.6b.2** Create `PreviewController` (GET `/api/v1/preview`, GET `/api/v1/preview?locale=en`)
-- [ ] **1.6b.3** Response shape matches api-design (single payload for admin preview page)
+- [x] **1.6b.1** Create `PreviewService` (aggregate all DRAFT sections; optional locale filter)
+- [x] **1.6b.2** Create `PreviewController` (GET `/api/v1/preview`, GET `/api/v1/preview?locale=en`)
+- [x] **1.6b.3** Response shape matches api-design (single payload for admin preview page)
 
-### Phase 1.7: Publish Pipeline (M4)
+### Phase 1.7: Publish Pipeline (M4) — Done
 
-- [ ] **1.7.1** Create `VersionSnapshot` document model (full content snapshot, label, publishedAt)
-- [ ] **1.7.2** Create `PublishRepository` (VersionSnapshot CRUD)
-- [ ] **1.7.3** Implement `PublishService` (orchestrate: read all DRAFT → copy to PUBLISHED → save snapshot)
-- [ ] **1.7.4** Create `PublishController` (POST `/api/v1/publish`, GET `/api/v1/publish/status`)
-- [ ] **1.7.5** Handle edge cases: empty sections, partial content, first publish
-- [ ] **1.7.6** Write integration tests for publish flow
+- [x] **1.7.1** Create `VersionSnapshot` document model (full content snapshot, label, publishedAt)
+- [x] **1.7.2** Create `PublishRepository` (VersionSnapshot CRUD)
+- [x] **1.7.3** Implement `PublishService` (orchestrate: read all DRAFT → copy to PUBLISHED → save snapshot)
+- [x] **1.7.4** Create `PublishController` (POST `/api/v1/publish`, GET `/api/v1/publish/status`)
+- [x] **1.7.5** Handle edge cases: empty sections, partial content, first publish
+- [x] **1.7.6** Write integration tests for publish flow
 
-### Phase 1.8: GraphQL Public API (M5)
+### Phase 1.8: GraphQL Public API (M5) — Done
 
-- [ ] **1.8.1** Create GraphQL schema file (`src/main/resources/graphql/schema.graphqls`)
-- [ ] **1.8.2** Configure Spring for GraphQL (path, GraphiQL for dev)
-- [ ] **1.8.3** Implement `HeroGraphQL` resolver (@QueryMapping, locale filtering)
-- [ ] **1.8.4** Implement resolvers for all list sections (experiences, projects, education, skills, certifications, socialLinks)
-- [ ] **1.8.5** Implement `SiteSettingsGraphQL` resolver
-- [ ] **1.8.6** Handle locale parameter: filter to single locale or use default
-- [ ] **1.8.7** Handle empty state: return null/empty arrays when no published content
+- [x] **1.8.1** Create GraphQL schema file (`src/main/resources/graphql/schema.graphqls`)
+- [x] **1.8.2** Configure Spring for GraphQL (path, GraphiQL for dev)
+- [x] **1.8.3** Implement `HeroGraphQL` resolver (@QueryMapping, locale filtering)
+- [x] **1.8.4** Implement resolvers for all list sections (experiences, projects, education, skills, certifications, socialLinks)
+- [x] **1.8.5** Implement `SiteSettingsGraphQL` resolver
+- [x] **1.8.6** Handle locale parameter: filter to single locale or use default
+- [x] **1.8.7** Handle empty state: return null/empty arrays when no published content
 - [ ] **1.8.8** Write integration tests for GraphQL queries
 
-### Phase 1.9: Docker & Deployment (M6)
+### Phase 1.9: Docker & Deployment (M6) — Done
 
-- [ ] **1.9.1** Create multi-stage `Dockerfile` (build + runtime)
-- [ ] **1.9.2** Create production `docker-compose.yml` (app + MongoDB + volumes)
-- [ ] **1.9.3** Create `.env.example` with all required environment variables
-- [ ] **1.9.4** Configure structured logging (JSON in production profile)
-- [ ] **1.9.5** Verify health check chain (Docker → Actuator → MongoDB)
+- [x] **1.9.1** Create multi-stage `Dockerfile` (build + runtime)
+- [x] **1.9.2** Create production `docker-compose.yml` (app + MongoDB + volumes)
+- [x] **1.9.3** Create `.env.example` with all required environment variables
+- [x] **1.9.4** Configure structured logging (JSON in production profile)
+- [x] **1.9.5** Verify health check chain (Docker → Actuator → MongoDB)
 - [ ] **1.9.6** Test full build and deployment cycle
 
 ### Phase 1.10: Testing & Polish (M7)
